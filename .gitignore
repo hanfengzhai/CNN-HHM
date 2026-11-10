@@ -1,0 +1,39 @@
+# trained weights / Drive downloads (use download_data.py)
+model/
+size75/
+rock_data/
+*.pt
+*.pth
+*.ckpt
+*.onnx
+*.pkl
+
+# images and documents
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.svg
+*.eps
+*.pdf
+*.tif
+*.tiff
+*.bmp
+*.webp
+
+# 3D digital-rock scans / volumes
+*.raw
+*.mhd
+*.nrrd
+*.nii
+*.nii.gz
+*.vti
+*.vtu
+*.vtk
+*.pvtu
+*.pvd
+*.h5
+*.hdf5
+
+__pycache__/
+*.pyc
