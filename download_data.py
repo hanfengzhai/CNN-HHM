@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
-"""Download CNN-HHM assets from Google Drive with gdown.
+"""Assemble and unpack CNN-HHM training assets shipped in anonymous_assets/.
 
-Shared folder:
-  https://drive.google.com/drive/folders/1SLbUaF1tLPfc1mj1LKjx6g-MR1320nHR?usp=sharing
+Large files are stored as zip archives (or split parts) inside this repository
+so reviewers do not need an external cloud account.
 
 Usage (from this repository root):
 
-  pip install gdown
   python download_data.py --assets models figures
   python download_data.py --assets size75 --rocks B1
   python download_data.py --list
@@ -14,59 +13,25 @@ Usage (from this repository root):
 from __future__ import annotations
 
 import argparse
-import os
+import shutil
 import sys
 import zipfile
 from pathlib import Path
 
-try:
-    import gdown
-except ImportError:
-    sys.exit("Install gdown first:  pip install gdown")
-
-# Standalone GitHub repo root (== directory of this file).
 ROOT = Path(__file__).resolve().parent
+ASSET_DIR = ROOT / "anonymous_assets"
 
-# Shared Drive folder (Anyone with the link).
-GDRIVE_FOLDER = (
-    "https://drive.google.com/drive/folders/"
-    "1SLbUaF1tLPfc1mj1LKjx6g-MR1320nHR?usp=sharing"
-)
-
-# Keys → (filename, Google Drive file id). Override with env GDRIVE_FILE_ID_<KEY>.
+# Keys → archive stem under anonymous_assets/ (without .zip).
+# Split archives use stem.zip.part00, stem.zip.part01, ...
 ASSETS = {
-    "models": (
-        "CNN-HHM_models.zip",
-        os.environ.get("GDRIVE_FILE_ID_MODELS", "10YD6-i4runn48kJsKSoL-RkABUzKYw28"),
-    ),
-    "figures": (
-        "CNN-HHM_figures.zip",
-        os.environ.get("GDRIVE_FILE_ID_FIGURES", "1aoWmRcliKxbMF3YN5PAdgZ4AqHjuEsdv"),
-    ),
-    "ot": (
-        "CNN-HHM_rock_data_OT.zip",
-        os.environ.get("GDRIVE_FILE_ID_OT", "1CSBaHZsw5O2U49w9eJaIXoQsRetOb1N8"),
-    ),
-    "size75_B1": (
-        "CNN-HHM_size75_B1.zip",
-        os.environ.get("GDRIVE_FILE_ID_SIZE75_B1", "1ztAcBblkescrFlykEV8iMdtucySzAmFB"),
-    ),
-    "size75_B2": (
-        "CNN-HHM_size75_B2.zip",
-        os.environ.get("GDRIVE_FILE_ID_SIZE75_B2", "1wpgQyMTFB3TbV1PaJmTBpWnzH4cfqjm3"),
-    ),
-    "size75_CG": (
-        "CNN-HHM_size75_CG.zip",
-        os.environ.get("GDRIVE_FILE_ID_SIZE75_CG", "1XWq7uWiv4AhkBxlJGF6lmRtTTGowuktL"),
-    ),
-    "size75_FB1": (
-        "CNN-HHM_size75_FB1.zip",
-        os.environ.get("GDRIVE_FILE_ID_SIZE75_FB1", "11ad10GVNL966L1SXZkoIHO-ZNMpnZBmd"),
-    ),
-    "size75_FB2": (
-        "CNN-HHM_size75_FB2.zip",
-        os.environ.get("GDRIVE_FILE_ID_SIZE75_FB2", "1M9NRC1zvuagU4ojAuFNZcsWauQqNMtF6"),
-    ),
+    "models": "CNN-HHM_models",
+    "figures": "CNN-HHM_figures",
+    "ot": "CNN-HHM_rock_data_OT",
+    "size75_B1": "CNN-HHM_size75_B1",
+    "size75_B2": "CNN-HHM_size75_B2",
+    "size75_CG": "CNN-HHM_size75_CG",
+    "size75_FB1": "CNN-HHM_size75_FB1",
+    "size75_FB2": "CNN-HHM_size75_FB2",
 }
 
 
@@ -90,7 +55,7 @@ def resolve_keys(assets: list[str], rocks: list[str]) -> list[str]:
 
 
 def _member_dest(name: str) -> Path | None:
-    """Map zip member path into this repo. Zips use a CNN-HHM/ prefix."""
+    """Map zip member path into this repo. Zips may use a CNN-HHM/ prefix."""
     name = name.replace("\\", "/")
     if name.endswith("/"):
         return None
@@ -101,25 +66,39 @@ def _member_dest(name: str) -> Path | None:
     return ROOT / name
 
 
-def download_and_extract(key: str, quiet: bool = False) -> None:
+def _locate_archive(stem: str) -> tuple[Path, list[Path]]:
+    """Return (assembled zip path, part files). parts empty if a single zip exists."""
+    whole = ASSET_DIR / f"{stem}.zip"
+    if whole.is_file():
+        return whole, []
+    parts = sorted(ASSET_DIR.glob(f"{stem}.zip.part*"))
+    if not parts:
+        raise SystemExit(
+            f"Missing archive for {stem!r} under {ASSET_DIR}. "
+            "Clone the full repository (including anonymous_assets/)."
+        )
+    return ASSET_DIR / f"{stem}.zip", parts
+
+
+def _assemble(stem: str) -> Path:
+    dest, parts = _locate_archive(stem)
+    if not parts:
+        return dest
+    print(f"Assembling {dest.name} from {len(parts)} parts …")
+    with open(dest, "wb") as out:
+        for part in parts:
+            with open(part, "rb") as src:
+                shutil.copyfileobj(src, out)
+    return dest
+
+
+def unpack(key: str) -> None:
     if key not in ASSETS:
         raise SystemExit(f"Unknown asset key {key!r}. Try --list")
-    name, file_id = ASSETS[key]
-    if file_id.startswith("PLACEHOLDER"):
-        raise SystemExit(
-            f"{key}: {name} is not on Drive yet (or id missing).\n"
-            f"  Upload it to {GDRIVE_FOLDER}\n"
-            f"  then put the file id in download_data.py ASSETS[{key!r}] "
-            f"(or set env GDRIVE_FILE_ID_{key.upper()})."
-        )
-    url = f"https://drive.google.com/uc?id={file_id}"
-    dest_zip = ROOT / name
-    print(f"Downloading {name} …")
-    gdown.download(url, str(dest_zip), quiet=quiet)
-    if not dest_zip.is_file():
-        raise SystemExit(f"Download failed: {dest_zip}")
-    print(f"Extracting into {ROOT} …")
-    with zipfile.ZipFile(dest_zip, "r") as zf:
+    stem = ASSETS[key]
+    zip_path = _assemble(stem)
+    print(f"Extracting {zip_path.name} into {ROOT} …")
+    with zipfile.ZipFile(zip_path, "r") as zf:
         for info in zf.infolist():
             dest = _member_dest(info.filename)
             if dest is None:
@@ -127,7 +106,10 @@ def download_and_extract(key: str, quiet: bool = False) -> None:
             dest.parent.mkdir(parents=True, exist_ok=True)
             with zf.open(info) as src, open(dest, "wb") as out:
                 out.write(src.read())
-    dest_zip.unlink()
+    # Remove reassembled zip if it was built from parts (keep original wholes).
+    parts = sorted(ASSET_DIR.glob(f"{stem}.zip.part*"))
+    if parts and zip_path.is_file():
+        zip_path.unlink()
     print(f"Done: {key}")
 
 
@@ -145,17 +127,22 @@ def main():
         default=["B1", "B2", "CG", "FB1", "FB2"],
         help="Used when --assets includes size75",
     )
-    ap.add_argument("--list", action="store_true", help="List asset keys and ids")
-    ap.add_argument("--quiet", action="store_true")
+    ap.add_argument("--list", action="store_true", help="List asset keys")
     args = ap.parse_args()
 
     if args.list:
-        for k, (name, fid) in ASSETS.items():
-            print(f"{k:12s}  {name:32s}  id={fid}")
+        for k, stem in ASSETS.items():
+            whole = ASSET_DIR / f"{stem}.zip"
+            npart = len(list(ASSET_DIR.glob(f"{stem}.zip.part*")))
+            status = "zip" if whole.is_file() else (f"{npart} parts" if npart else "MISSING")
+            print(f"{k:12s}  {stem:28s}  {status}")
         return
 
+    if not ASSET_DIR.is_dir():
+        raise SystemExit(f"Missing {ASSET_DIR}. Full clone required.")
+
     for key in resolve_keys(args.assets, args.rocks):
-        download_and_extract(key, quiet=args.quiet)
+        unpack(key)
 
 
 if __name__ == "__main__":

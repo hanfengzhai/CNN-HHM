@@ -16,27 +16,21 @@ The manuscript recommends Model 3 as the default for speed and HS consistency. A
 
 ## Setup
 
-Python 3.10+, [PyTorch](https://pytorch.org/), NumPy, SciPy, matplotlib, tqdm, [`gdown`](https://github.com/wkentaro/gdown). For the FFT coarse solve, also `atomman` (see `environment.yml`).
+Python 3.10+, [PyTorch](https://pytorch.org/), NumPy, SciPy, matplotlib, tqdm. For the FFT coarse solve, also `atomman` (see `environment.yml`).
 
 ```bash
 git clone <this-repository-url>
 cd CNN-HHM
 conda env create -f environment.yml
 conda activate fft_solver
-pip install torch gdown
+pip install torch
 ```
 
-### Large data (Google Drive)
+### Training data and model weights
 
-Trained weights, paper figures, and $75^3$ scans are **not** in Git. They live in this shared folder:
-
-[drive_upload (Google Drive)](https://drive.google.com/drive/folders/1SLbUaF1tLPfc1mj1LKjx6g-MR1320nHR?usp=sharing)
-
-After cloning:
+Trained weights, paper figures, and $75^3$ scans ship in `anonymous_assets/` (zip archives; the models archive is split into `.partXX` files under 95 MB). Unpack after cloning:
 
 ```bash
-pip install gdown
-
 # pretrained checkpoints → model/*.pt
 python download_data.py --assets models
 
@@ -50,16 +44,14 @@ python download_data.py --assets size75 --rocks B1
 python download_data.py --assets ot
 ```
 
-File ids are in `download_data.py` (`ASSETS`). Maintainers rebuild zips with `python pack_drive_assets.py`.
-
-| Zip | Contents |
+| Archive | Contents |
 | --- | --- |
-| `CNN-HHM_models.zip` | `model/cnn3d_rock_*.pt` (Models 1–3 + Benchmark 1, all rocks) |
-| `CNN-HHM_figures.zip` | `figures/`, `fig_{B1,B2,CG,FB1,FB2}/` |
-| `CNN-HHM_size75_<ROCK>.zip` | `size75/<ROCK>/images` + `stiffness.dat` |
-| `CNN-HHM_rock_data_OT.zip` | `rock_data/{HR,LR}_dry_OT` |
+| `CNN-HHM_models` | `model/cnn3d_rock_*.pt` (Models 1–3 + Benchmark 1, all rocks) |
+| `CNN-HHM_figures` | `figures/`, `fig_{B1,B2,CG,FB1,FB2}/` |
+| `CNN-HHM_size75_<ROCK>` | `size75/<ROCK>/images` + `stiffness.dat` |
+| `CNN-HHM_rock_data_OT` | `rock_data/{HR,LR}_dry_OT` |
 
-After `size75` download, train with:
+After unpacking `size75`, train with:
 
 ```bash
 python3 train_cnn.py \
@@ -106,9 +98,9 @@ python3 fft_homogenization.py -r B1 -m OT -S 800 -s 100 -p 0
 | `train_cnn.py` | Train or evaluate the 3D CNN |
 | `eval_cnn_hhm_moduli.py` | CNN + HHM on large crops |
 | `fft_homogenization.py` | Coarse FFT elasticity solve |
-| `download_data.py` | `gdown` + unzip Drive assets |
-| `pack_drive_assets.py` | Build Drive upload zips (maintainers) |
+| `download_data.py` | Assemble split archives and unpack `anonymous_assets/` |
+| `anonymous_assets/` | Zipped models, figures, and size-75 training data |
 | `util_*.py` | Data, CNN, FFT, plotting |
 | `data/`, `data_hhm/` | Stiffness and moduli tables |
-| `model/` | Checkpoints (from Drive) |
-| `size75/` | Training scans (from Drive) |
+| `model/` | Checkpoints (after `download_data.py`) |
+| `size75/` | Training scans (after `download_data.py`) |
