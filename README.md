@@ -77,6 +77,18 @@ python3 train_cnn.py \
 
 Rocks: `B1`, `B2`, `CG`, `FB1`, `FB2`. Run all three targets with `bash train_cnn.sh`.
 
+## Reproduce one manuscript figure
+
+The B1 training and test loss summary is rebuilt from the loss arrays already in `fig_B1/`:
+
+```bash
+python3 plot_loss_transfer_learn.py \
+  --loss_cache_dir fig_B1 \
+  --summary_out figures/loss_summary_B1.png
+```
+
+The command writes `figures/loss_summary_B1.png`.
+
 ## Evaluate CNN-HHM
 
 ```bash
